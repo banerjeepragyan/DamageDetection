@@ -10,7 +10,7 @@ from utils.constants import NEG_CLASS
 
 
 def train(
-    dataloader, model, optimizer, criterion, epochs, device, target_accuracy=None
+    dataloader, model, optimizer, criterion, epochs, device, chkpt_freq, target_accuracy=None
 ):
     """
     Script to train a model. Returns trained model.
@@ -47,6 +47,9 @@ def train(
             if epoch_acc > target_accuracy:
                 print("Early Stopping")
                 break
+        
+        if epoch%chkpt_freq == 0:
+            torch.save(model.state_dict(), f'weights/{epoch}_model.h5')
 
     return model
 
