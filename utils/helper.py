@@ -4,9 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, accuracy_score, balanced_accuracy_score
-
+from sklearn.metrics import confusion_matrix, accuracy_score, balanced_accuracy_score, f1_score, precision_score, recall_score
+import os
 from utils.constants import NEG_CLASS
+import pandas as pd
 
 
 def train(
@@ -82,9 +83,17 @@ def evaluate(model, dataloader, device):
 
     accuracy = accuracy_score(y_true, y_pred)
     balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
 
+
+    print("Num Samples: ", len(y_true))
     print("Accuracy: {:.4f}".format(accuracy))
     print("Balanced Accuracy: {:.4f}".format(balanced_accuracy))
+    print("F1 score: {:.4f}".format(f1))
+    print("Precision: {:.4f}".format(precision))
+    print("Recall: {:.4f}".format(recall))
     print()
     plot_confusion_matrix(y_true, y_pred, class_names=class_names)
 
@@ -127,7 +136,7 @@ def get_bbox_from_heatmap(heatmap, thres=0.8):
     return x_0, y_0, x_1, y_1
 
 
-def predict_localize(
+def predict_localize_all(
     model, dataloader, device, thres=0.8, n_samples=9, show_heatmap=False
 ):
     """
@@ -187,3 +196,99 @@ def predict_localize(
                 plt.tight_layout()
                 plt.show()
                 return
+
+
+def predict_localize(
+    model, dataloader, device, thres=0.8, show_heatmap=False
+):
+    """
+    Runs predictions for the samples in the dataloader.
+    Shows image, its true label, predicted label and probability.
+    If an anomaly is predicted, draws bbox around defected region and heatmap.
+    """
+    model.to(device)
+    model.eval()
+
+    class_names = dataloader.dataset.classes
+    transform_to_PIL = transforms.ToPILImage()
+
+    save_dir = 'subplot_images'  
+    os.makedirs(save_dir, exist_ok=True)  
+    df = pd.DataFrame(columns=['Image', 'Label', 'Prediction', 'Probability', 'X_0', 'Y_0', 'X_1', 'Y_1', 'X_max', 'Y_max'])
+
+    n_cols = 3
+    n_rows = int(np.ceil(3 / n_cols))
+    plt.figure(figsize=[n_cols * 5, n_rows * 5])
+
+    counter = 0
+    for inputs, labels in dataloader:
+        inputs = inputs.to(device)
+        out = model(inputs)
+        probs, class_preds = torch.max(out[0], dim=-1)
+        feature_maps = out[1].to("cpu")
+
+        for img_i in range(inputs.size(0)):
+            img = transform_to_PIL(inputs[img_i])
+            img_size = img.size
+            class_pred = class_preds[img_i]
+            prob = probs[img_i]
+            label = labels[img_i]
+            heatmap = feature_maps[img_i][NEG_CLASS].detach().numpy()
+
+            counter += 1
+            plt.imshow(img)
+            plt.axis("off")
+
+            prb = prob.cpu().detach().numpy().item()
+            if class_pred == NEG_CLASS:
+                x_0, y_0, x_1, y_1 = get_bbox_from_heatmap(heatmap, thres)
+                rectangle = Rectangle(
+                    (x_0, y_0),
+                    x_1 - x_0,
+                    y_1 - y_0,
+                    edgecolor="red",
+                    facecolor="none",
+                    lw=3,
+                )
+                plt.gca().add_patch(rectangle)
+                if show_heatmap:
+                    plt.imshow(heatmap, cmap="Reds", alpha=0.3)
+                row_data = {
+                    'Image': counter,
+                    'Label': class_names[label],
+                    'Prediction': class_names[class_pred],
+                    'Probability': prb,
+                    'X_0': x_0,
+                    'Y_0': y_0,
+                    'X_1': x_1,
+                    'Y_1': y_1,
+                    'X_max': img_size[0],
+                    'Y_max': img_size[1],
+                }
+
+            else:
+                print("-")
+                row_data = {
+                    'Image': counter,
+                    'Label': class_names[label],
+                    'Prediction': class_names[class_pred],
+                    'Probability': prb,
+                    'X_0': -1,
+                    'Y_0': -1,
+                    'X_1': -1,
+                    'Y_1': -1,
+                    'X_max': img_size[0],
+                    'Y_max': img_size[1],
+                }
+
+            df = df.append(row_data, ignore_index=True)
+
+            filename = os.path.join(save_dir, f'subplot_{counter}.png')
+            plt.tight_layout()
+            plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+            plt.close()
+
+    print(df.head())
+    df.to_csv('data.csv', index=False)
+    return
+            
