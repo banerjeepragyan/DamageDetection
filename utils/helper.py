@@ -48,7 +48,7 @@ def train(
             if epoch_acc > target_accuracy:
                 print("Early Stopping")
                 break
-        
+
         if epoch%chkpt_freq == 0:
             torch.save(model.state_dict(), f'weights/{epoch}_model.h5')
 
@@ -113,13 +113,13 @@ def plot_confusion_matrix(y_true, y_pred, class_names="auto"):
     plt.xlabel("Predicted labels")
     plt.title("Confusion Matrix")
     plt.show()
-    
-    
+
+
 def get_bbox_from_heatmap(heatmap, thres=0.8):
     """
     Returns bounding box around the defected area:
     Upper left and lower right corner.
-    
+
     Threshold affects size of the bounding box.
     The higher the threshold, the wider the bounding box.
     """
@@ -168,6 +168,12 @@ def predict_localize_all(
             label = labels[img_i]
             heatmap = feature_maps[img_i][NEG_CLASS].detach().numpy()
 
+            if counter==0:
+                np.save('feature_maps.npy', feature_maps.detach().numpy())
+                np.save('heatmap.npy', heatmap)
+                print (type (feature_maps))
+                print (type (heatmap))
+
             counter += 1
             plt.subplot(n_rows, n_cols, counter)
             plt.imshow(img)
@@ -212,8 +218,8 @@ def predict_localize(
     class_names = dataloader.dataset.classes
     transform_to_PIL = transforms.ToPILImage()
 
-    save_dir = 'subplot_images'  
-    os.makedirs(save_dir, exist_ok=True)  
+    save_dir = 'subplot_images'
+    os.makedirs(save_dir, exist_ok=True)
     df = pd.DataFrame(columns=['Image', 'Label', 'Prediction', 'Probability', 'X_0', 'Y_0', 'X_1', 'Y_1', 'X_max', 'Y_max'])
 
     n_cols = 3
@@ -291,4 +297,4 @@ def predict_localize(
     print(df.head())
     df.to_csv('data.csv', index=False)
     return
-            
+
