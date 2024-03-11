@@ -96,6 +96,7 @@ def evaluate(model, dataloader, device):
     print("Recall: {:.4f}".format(recall))
     print()
     plot_confusion_matrix(y_true, y_pred, class_names=class_names)
+    return accuracy, balanced_accuracy, f1, precision, recall
 
 
 def plot_confusion_matrix(y_true, y_pred, class_names="auto"):
@@ -150,7 +151,7 @@ def predict_localize_all(
     class_names = dataloader.dataset.classes
     transform_to_PIL = transforms.ToPILImage()
 
-    n_cols = 3
+    n_cols = 10
     n_rows = int(np.ceil(n_samples / n_cols))
     plt.figure(figsize=[n_cols * 5, n_rows * 5])
 
